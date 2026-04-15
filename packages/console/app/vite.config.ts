@@ -13,6 +13,18 @@ export default defineConfig({
       cloudflare: {
         nodeCompat: true,
       },
+      routeRules: {
+        // Registry files served via 302 redirect to mcp-tools GitHub Releases
+        "/registry.yaml": {
+          redirect: "https://github.com/silicon-works/mcp-tools/releases/download/registry-latest/registry.yaml",
+        },
+        "/registry.sha256": {
+          redirect: "https://github.com/silicon-works/mcp-tools/releases/download/registry-latest/registry.sha256",
+        },
+        "/registry.lance.tar.gz": {
+          redirect: "https://github.com/silicon-works/mcp-tools/releases/download/registry-latest/registry.lance.tar.gz",
+        },
+      },
     }),
   ],
   server: {
