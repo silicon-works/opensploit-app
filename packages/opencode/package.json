@@ -17,7 +17,7 @@
     "db": "bun drizzle-kit"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "opensploit": "./bin/opencode"
   },
   "exports": {
     "./*": "./src/*.ts"
