@@ -173,6 +173,10 @@ export default defineConfig({
       },
       sidebar: [
         "",
+        {
+          label: "Pentest",
+          items: ["phases", "security", "security-tools"],
+        },
         "config",
         "providers",
         "network",
