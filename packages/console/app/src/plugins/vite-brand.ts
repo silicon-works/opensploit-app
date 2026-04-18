@@ -48,6 +48,8 @@ const REPLACEMENTS: Array<[string | RegExp, string]> = [
   ["Anomaly Innovations", "Silicon Works Ltd"],
   [/\bAnomaly\b/g, "Silicon Works"],
   ["anoma.ly", "opensploit.ai"],
+  // Remove brand page navigation (page disabled via routeRule redirect)
+  [/navigate\(language\.route\("\/brand"\)\)/, 'navigate("/")'],
 ]
 
 function replaceText(input: string): string {
