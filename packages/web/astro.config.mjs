@@ -8,6 +8,8 @@ import config from "./config.mjs"
 import { rehypeHeadingIds } from "@astrojs/markdown-remark"
 import rehypeAutolinkHeadings from "rehype-autolink-headings"
 import { spawnSync } from "child_process"
+import { rehypeBrand } from "./src/plugins/rehype-brand"
+import brandPostprocess from "./src/plugins/brand-postprocess"
 
 // https://astro.build/config
 export default defineConfig({
@@ -24,11 +26,12 @@ export default defineConfig({
     host: "0.0.0.0",
   },
   markdown: {
-    rehypePlugins: [rehypeHeadingIds, [rehypeAutolinkHeadings, { behavior: "wrap" }]],
+    rehypePlugins: [rehypeHeadingIds, [rehypeAutolinkHeadings, { behavior: "wrap" }], rehypeBrand],
   },
   build: {},
   integrations: [
     configSchema(),
+    brandPostprocess(),
     solidJs(),
     starlight({
       title: "OpenCode",

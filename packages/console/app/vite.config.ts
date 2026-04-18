@@ -1,9 +1,11 @@
 import { defineConfig, PluginOption } from "vite"
 import { solidStart } from "@solidjs/start/config"
 import { nitro } from "nitro/vite"
+import { viteBrand } from "./src/plugins/vite-brand"
 
 export default defineConfig({
   plugins: [
+    viteBrand(),
     solidStart({
       middleware: "./src/middleware.ts",
     }) as PluginOption,
