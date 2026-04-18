@@ -33,7 +33,9 @@ jobs:
       - run: cp -r packages/web/dist/docs packages/console/app/.output/public/docs
 
       # Deploy combined Worker to opensploit.ai
+      # Remove conflicting deploy config to avoid wrangler's "two configs" error
       - run: |
+          rm -rf packages/console/app/.output/.wrangler
           cd packages/console/app/.output/server
           npx wrangler deploy \
             --name opensploit-console \
