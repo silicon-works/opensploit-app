@@ -26,6 +26,9 @@ export default defineConfig({
         "/registry.lance.tar.gz": {
           redirect: "https://github.com/silicon-works/mcp-tools/releases/download/registry-latest/registry.lance.tar.gz",
         },
+        // Hide pages we don't need yet
+        "/brand": { redirect: "/" },
+        "/brand/**": { redirect: "/" },
       },
     }),
   ],
