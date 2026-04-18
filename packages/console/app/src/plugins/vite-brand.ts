@@ -5,11 +5,88 @@
  * during Vite's build process. Only transforms .ts, .tsx, .js, .jsx files
  * that contain "opencode" or "OpenCode" strings.
  *
- * Imports replaceText from the web package's rehype-brand.ts for consistency.
+ * The replaceText function is duplicated from packages/web/src/plugins/rehype-brand.ts
+ * because cross-package imports don't resolve during the console's vite build.
  */
 
 import type { Plugin } from "vite"
-import { replaceText } from "../../../web/src/plugins/rehype-brand"
+
+// ---------------------------------------------------------------------------
+// Protected patterns — never replaced even when they contain "opencode"
+// ---------------------------------------------------------------------------
+
+const PROTECTED = [
+  "@opencode-ai/",
+  "OPENCODE_",
+  "packages/opencode",
+  "built on OpenCode",
+  "fork of OpenCode",
+  "createOpencodeClient",
+  "OpencodeClient",
+  // Asset filenames — the files aren't renamed, only the references in rendered HTML
+  "opencode-logo-",
+  "opencode-wordmark-",
+  "opencode-comparison",
+  "opencode-desktop",
+  "opencode-min",
+  "opencode-poster",
+]
+
+// ---------------------------------------------------------------------------
+// Replacement patterns — ordered most-specific-first
+// ---------------------------------------------------------------------------
+
+const REPLACEMENTS: Array<[string | RegExp, string]> = [
+  ["opencode.ai", "opensploit.ai"],
+  ["anomalyco/tap/opencode", "silicon-works/tap/opensploit"],
+  ["ghcr.io/anomalyco/opencode", "ghcr.io/silicon-works/opensploit"],
+  ["anomalyco/opencode", "silicon-works/opensploit"],
+  ["anomalyco", "silicon-works"],
+  ["opencode-ai", "opensploit"],
+  ["opencode-bin", "opensploit-bin"],
+  [/\bOpencode\b/g, "OpenSploit"],
+  ["OpenCode", "OpenSploit"],
+  ["opencode", "opensploit"],
+  ["Anomaly Innovations", "Silicon Works Ltd"],
+  [/\bAnomaly\b/g, "Silicon Works"],
+  ["anoma.ly", "opensploit.ai"],
+]
+
+function replaceText(input: string): string {
+  if (!input) return input
+
+  const placeholders: string[] = []
+  let text = input
+
+  for (const pattern of PROTECTED) {
+    let idx: number
+    while ((idx = text.indexOf(pattern)) !== -1) {
+      const placeholder = `\0${placeholders.length}\0`
+      placeholders.push(pattern)
+      text = text.slice(0, idx) + placeholder + text.slice(idx + pattern.length)
+    }
+  }
+
+  for (const [from, to] of REPLACEMENTS) {
+    if (from instanceof RegExp) {
+      text = text.replace(from, to)
+    } else {
+      while (text.includes(from)) {
+        text = text.replace(from, to)
+      }
+    }
+  }
+
+  for (let i = 0; i < placeholders.length; i++) {
+    text = text.replace(`\0${i}\0`, placeholders[i])
+  }
+
+  return text
+}
+
+// ---------------------------------------------------------------------------
+// Vite plugin
+// ---------------------------------------------------------------------------
 
 const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
 
@@ -18,11 +95,8 @@ export function viteBrand(): Plugin {
     name: "opensploit-vite-brand",
     enforce: "pre",
     transform(code, id) {
-      // Only transform source files
       if (!TRANSFORM_EXTENSIONS.some((ext) => id.endsWith(ext))) return
-      // Skip node_modules
       if (id.includes("node_modules")) return
-      // Skip if no branding targets present
       if (!code.includes("opencode") && !code.includes("OpenCode") && !code.includes("Anomaly")) return
 
       const transformed = replaceText(code)
