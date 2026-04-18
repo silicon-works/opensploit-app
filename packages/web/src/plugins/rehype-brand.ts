@@ -26,9 +26,7 @@ const PROTECTED = [
   "fork of OpenCode",   // attribution
   "createOpencodeClient", // SDK function
   "OpencodeClient",     // SDK type
-  "opencode-logo-",     // asset filenames (files not renamed)
-  "opencode-wordmark-", // asset filenames
-  "opencode-comparison",// asset filenames
+  "opencode-comparison",// asset filenames without opensploit equivalents
   "opencode-desktop",   // asset filenames
   "opencode-min",       // asset filenames
   "opencode-poster",    // asset filenames

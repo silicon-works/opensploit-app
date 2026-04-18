@@ -23,9 +23,7 @@ const PROTECTED = [
   "fork of OpenCode",
   "createOpencodeClient",
   "OpencodeClient",
-  // Asset filenames — the files aren't renamed, only the references in rendered HTML
-  "opencode-logo-",
-  "opencode-wordmark-",
+  // Asset filenames that don't have opensploit equivalents yet
   "opencode-comparison",
   "opencode-desktop",
   "opencode-min",
