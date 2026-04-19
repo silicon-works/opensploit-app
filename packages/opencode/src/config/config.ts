@@ -60,11 +60,11 @@ export namespace Config {
   function systemManagedConfigDir(): string {
     switch (process.platform) {
       case "darwin":
-        return "/Library/Application Support/opencode"
+        return "/Library/Application Support/opensploit"
       case "win32":
-        return path.join(process.env.ProgramData || "C:\\ProgramData", "opencode")
+        return path.join(process.env.ProgramData || "C:\\ProgramData", "opensploit")
       default:
-        return "/etc/opencode"
+        return "/etc/opensploit"
     }
   }
 
@@ -177,7 +177,7 @@ export namespace Config {
       })
       if (!md) continue
 
-      const patterns = ["/.opencode/command/", "/.opencode/commands/", "/command/", "/commands/"]
+      const patterns = ["/.opensploit/command/", "/.opensploit/commands/", "/command/", "/commands/"]
       const file = rel(item, patterns) ?? path.basename(item)
       const name = trim(file)
 
@@ -216,7 +216,7 @@ export namespace Config {
       })
       if (!md) continue
 
-      const patterns = ["/.opencode/agent/", "/.opencode/agents/", "/agent/", "/agents/"]
+      const patterns = ["/.opensploit/agent/", "/.opensploit/agents/", "/agent/", "/agents/"]
       const file = rel(item, patterns) ?? path.basename(item)
       const agentName = trim(file)
 
@@ -1085,7 +1085,7 @@ export namespace Config {
   export class Service extends Context.Service<Service, Interface>()("@opencode/Config") {}
 
   function globalConfigFile() {
-    const candidates = ["opencode.jsonc", "opencode.json", "config.json"].map((file) =>
+    const candidates = ["opensploit.jsonc", "opensploit.json", "config.json"].map((file) =>
       path.join(Global.Path.config, file),
     )
     for (const file of candidates) {
@@ -1240,8 +1240,8 @@ export namespace Config {
         let result: Info = pipe(
           {},
           mergeDeep(yield* loadFile(path.join(Global.Path.config, "config.json"))),
-          mergeDeep(yield* loadFile(path.join(Global.Path.config, "opencode.json"))),
-          mergeDeep(yield* loadFile(path.join(Global.Path.config, "opencode.jsonc"))),
+          mergeDeep(yield* loadFile(path.join(Global.Path.config, "opensploit.json"))),
+          mergeDeep(yield* loadFile(path.join(Global.Path.config, "opensploit.jsonc"))),
         )
 
         const legacy = path.join(Global.Path.config, "config")
@@ -1407,7 +1407,7 @@ export namespace Config {
 
         if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
           for (const file of yield* Effect.promise(() =>
-            ConfigPaths.projectFiles("opencode", ctx.directory, ctx.worktree),
+            ConfigPaths.projectFiles("opensploit", ctx.directory, ctx.worktree),
           )) {
             yield* merge(file, yield* loadFile(file), "local")
           }
@@ -1426,8 +1426,8 @@ export namespace Config {
         const deps: Fiber.Fiber<void, never>[] = []
 
         for (const dir of unique(directories)) {
-          if (dir.endsWith(".opencode") || dir === Flag.OPENCODE_CONFIG_DIR) {
-            for (const file of ["opencode.json", "opencode.jsonc"]) {
+          if (dir.endsWith(".opensploit") || dir === Flag.OPENCODE_CONFIG_DIR) {
+            for (const file of ["opensploit.json", "opensploit.jsonc"]) {
               const source = path.join(dir, file)
               log.debug(`loading config from ${source}`)
               yield* merge(source, yield* loadFile(source))
@@ -1506,7 +1506,7 @@ export namespace Config {
         }
 
         if (existsSync(managedDir)) {
-          for (const file of ["opencode.json", "opencode.jsonc"]) {
+          for (const file of ["opensploit.json", "opensploit.jsonc"]) {
             const source = path.join(managedDir, file)
             yield* merge(source, yield* loadFile(source), "global")
           }

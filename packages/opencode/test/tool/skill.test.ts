@@ -35,7 +35,7 @@ describe("tool.skill", () => {
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
-          const skill = path.join(dir, ".opencode", "skill", "tool-skill")
+          const skill = path.join(dir, ".opensploit", "skill", "tool-skill")
           yield* Effect.promise(() =>
             Bun.write(
               path.join(skill, "SKILL.md"),
@@ -77,7 +77,7 @@ description: Skill for tool tests.
             ["alpha-skill", "Alpha skill."],
             ["middle-skill", "Middle skill."],
           ]) {
-            const skill = path.join(dir, ".opencode", "skill", name)
+            const skill = path.join(dir, ".opensploit", "skill", name)
             yield* Effect.promise(() =>
               Bun.write(
                 path.join(skill, "SKILL.md"),
@@ -131,7 +131,7 @@ description: ${description}
     provideTmpdirInstance(
       (dir) =>
         Effect.gen(function* () {
-          const skill = path.join(dir, ".opencode", "skill", "tool-skill")
+          const skill = path.join(dir, ".opensploit", "skill", "tool-skill")
           yield* Effect.promise(() =>
             Bun.write(
               path.join(skill, "SKILL.md"),

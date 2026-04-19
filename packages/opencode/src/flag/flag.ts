@@ -119,7 +119,7 @@ Object.defineProperty(Flag, "OPENCODE_TUI_CONFIG", {
 // because external tooling may set this env var at runtime
 Object.defineProperty(Flag, "OPENCODE_CONFIG_DIR", {
   get() {
-    return process.env["OPENCODE_CONFIG_DIR"]
+    return process.env["OPENSPLOIT_CONFIG_DIR"] ?? process.env["OPENCODE_CONFIG_DIR"]
   },
   enumerable: true,
   configurable: false,

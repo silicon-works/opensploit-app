@@ -124,7 +124,7 @@ export const PrCommand = cmd({
         UI.println()
 
         const opencodeArgs = sessionId ? ["-s", sessionId] : []
-        const opencodeProcess = Process.spawn(["opencode", ...opencodeArgs], {
+        const opencodeProcess = Process.spawn(["opensploit", ...opencodeArgs], {
           stdin: "inherit",
           stdout: "inherit",
           stderr: "inherit",

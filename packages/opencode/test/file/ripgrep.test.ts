@@ -26,28 +26,28 @@ describe("file.ripgrep", () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         await Bun.write(path.join(dir, "visible.txt"), "hello")
-        await fs.mkdir(path.join(dir, ".opencode"), { recursive: true })
-        await Bun.write(path.join(dir, ".opencode", "thing.json"), "{}")
+        await fs.mkdir(path.join(dir, ".opensploit"), { recursive: true })
+        await Bun.write(path.join(dir, ".opensploit", "thing.json"), "{}")
       },
     })
 
     const files = await Array.fromAsync(await Ripgrep.files({ cwd: tmp.path }))
     expect(files.includes("visible.txt")).toBe(true)
-    expect(files.includes(path.join(".opencode", "thing.json"))).toBe(true)
+    expect(files.includes(path.join(".opensploit", "thing.json"))).toBe(true)
   })
 
   test("hidden false excludes hidden", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         await Bun.write(path.join(dir, "visible.txt"), "hello")
-        await fs.mkdir(path.join(dir, ".opencode"), { recursive: true })
-        await Bun.write(path.join(dir, ".opencode", "thing.json"), "{}")
+        await fs.mkdir(path.join(dir, ".opensploit"), { recursive: true })
+        await Bun.write(path.join(dir, ".opensploit", "thing.json"), "{}")
       },
     })
 
     const files = await Array.fromAsync(await Ripgrep.files({ cwd: tmp.path, hidden: false }))
     expect(files.includes("visible.txt")).toBe(true)
-    expect(files.includes(path.join(".opencode", "thing.json"))).toBe(false)
+    expect(files.includes(path.join(".opensploit", "thing.json"))).toBe(false)
   })
 
   test("search returns empty when nothing matches", async () => {

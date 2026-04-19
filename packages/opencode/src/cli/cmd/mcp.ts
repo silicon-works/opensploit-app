@@ -408,11 +408,11 @@ export const McpLogoutCommand = cmd({
 })
 
 async function resolveConfigPath(baseDir: string, global = false) {
-  // Check for existing config files (prefer .jsonc over .json, check .opencode/ subdirectory too)
-  const candidates = [path.join(baseDir, "opencode.json"), path.join(baseDir, "opencode.jsonc")]
+  // Check for existing config files (prefer .jsonc over .json, check .opensploit/ subdirectory too)
+  const candidates = [path.join(baseDir, "opensploit.json"), path.join(baseDir, "opensploit.jsonc")]
 
   if (!global) {
-    candidates.push(path.join(baseDir, ".opencode", "opencode.json"), path.join(baseDir, ".opencode", "opencode.jsonc"))
+    candidates.push(path.join(baseDir, ".opensploit", "opensploit.json"), path.join(baseDir, ".opensploit", "opensploit.jsonc"))
   }
 
   for (const candidate of candidates) {

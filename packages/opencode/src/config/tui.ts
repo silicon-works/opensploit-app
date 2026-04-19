@@ -111,10 +111,10 @@ export namespace TuiConfig {
       await mergeFile(acc, file, ctx)
     }
 
-    const dirs = unique(directories).filter((dir) => dir.endsWith(".opencode") || dir === Flag.OPENCODE_CONFIG_DIR)
+    const dirs = unique(directories).filter((dir) => dir.endsWith(".opensploit") || dir === Flag.OPENCODE_CONFIG_DIR)
 
     for (const dir of dirs) {
-      if (!dir.endsWith(".opencode") && dir !== Flag.OPENCODE_CONFIG_DIR) continue
+      if (!dir.endsWith(".opensploit") && dir !== Flag.OPENCODE_CONFIG_DIR) continue
       for (const file of ConfigPaths.fileInDirectory(dir, "tui")) {
         await mergeFile(acc, file, ctx)
       }
