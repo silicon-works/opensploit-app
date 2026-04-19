@@ -49,48 +49,81 @@ export default function AcceptableUsePolicy() {
                 <li>Engage in any activity that violates applicable law or regulations</li>
               </ul>
 
-              <h2>3. Your Responsibility</h2>
+              <h2>3. Acknowledgment of Capabilities</h2>
               <p>
-                <strong>You are solely responsible for your use of OpenSploit.</strong> We do not verify
-                whether you have authorization to test any particular target. OpenSploit is a tool — like
-                any security tool, it can be used responsibly or irresponsibly. You assume full legal
-                responsibility for all actions taken using the platform.
+                <strong>YOU ACKNOWLEDGE THAT OPENSPLOIT CONTAINS FUNCTIONALITY THAT CAN BE USED TO
+                SCAN, TEST, ATTACK, AND COMPROMISE COMPUTER SYSTEMS.</strong> This includes network
+                scanning, vulnerability exploitation, password testing, and other offensive security
+                techniques. These capabilities exist for legitimate, authorized security testing.
+                You accept full responsibility for how you use these capabilities.
               </p>
 
-              <h2>4. No Warranty of Legality</h2>
+              <h2>4. Your Responsibility</h2>
+              <p>
+                <strong>Usage of OpenSploit for attacking targets without prior mutual consent is
+                illegal. It is the end user's responsibility to obey all applicable local, state,
+                and federal laws. Silicon Works Ltd assumes no liability and is not responsible for
+                any misuse or damage caused by this software.</strong>
+              </p>
+              <p>
+                We do not verify whether you have authorization to test any particular target. You
+                are solely and exclusively responsible for determining the appropriateness of your
+                use and for ensuring you have proper authorization. You assume all risks associated
+                with your use of the platform.
+              </p>
+
+              <h2>5. No Warranty</h2>
+              <p>
+                THE SOFTWARE AND SERVICES ARE PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS,
+                WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING
+                WITHOUT LIMITATION ANY WARRANTIES OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY, OR
+                FITNESS FOR A PARTICULAR PURPOSE. Silicon Works Ltd does not warrant that the
+                software will meet your requirements, operate error-free, detect all vulnerabilities,
+                or produce accurate results.
+              </p>
               <p>
                 OpenSploit's built-in safeguards (target validation, scope warnings) are provided as
-                convenience features, not legal protections. The presence or absence of a warning does not
-                constitute legal advice or authorization to test any target.
+                convenience features, not legal protections. The presence or absence of a warning does
+                not constitute legal advice or authorization to test any target.
               </p>
 
-              <h2>5. Account Termination</h2>
+              <h2>6. Limitation of Liability</h2>
+              <p>
+                TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL SILICON WORKS
+                LTD, ITS OFFICERS, DIRECTORS, EMPLOYEES, OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+                INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT
+                NOT LIMITED TO LOSS OF PROFITS, LOSS OF DATA, BUSINESS INTERRUPTION, OR DAMAGE TO
+                COMPUTER SYSTEMS) ARISING OUT OF THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF
+                ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+              </p>
+
+              <h2>7. Account Termination</h2>
               <p>
                 We reserve the right to suspend or terminate your account if we have reasonable grounds to
                 believe you are using OpenSploit in violation of this AUP, without prior notice or liability.
               </p>
 
-              <h2>6. Indemnification</h2>
+              <h2>8. Indemnification</h2>
               <p>
                 You agree to indemnify and hold harmless Silicon Works Ltd, its officers, directors, and
                 employees from any claims, damages, losses, or expenses (including legal fees) arising from
                 your use of OpenSploit or violation of this AUP.
               </p>
 
-              <h2>7. Law Enforcement</h2>
+              <h2>9. Law Enforcement</h2>
               <p>
                 We will cooperate with law enforcement agencies in accordance with applicable UK law,
                 including the Data Protection Act 2018 and the Regulation of Investigatory Powers Act 2000.
                 We retain minimal user data — see our Privacy Policy for details.
               </p>
 
-              <h2>8. Changes to This Policy</h2>
+              <h2>10. Changes to This Policy</h2>
               <p>
                 We may update this AUP from time to time. Material changes will be communicated via the
                 platform. Continued use of OpenSploit after changes constitutes acceptance of the updated policy.
               </p>
 
-              <h2>9. Contact</h2>
+              <h2>11. Contact</h2>
               <p>
                 For questions about this policy, contact us at{" "}
                 <a href="mailto:legal@opensploit.ai">legal@opensploit.ai</a>.

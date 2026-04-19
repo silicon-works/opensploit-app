@@ -48,6 +48,10 @@ const REPLACEMENTS: Array<[string | RegExp, string]> = [
   ["Anomaly Innovations", "Silicon Works Ltd"],
   [/\bAnomaly\b/g, "Silicon Works"],
   ["anoma.ly", "opensploit.ai"],
+  // Legal page content — replace coding-assistant language with security-tool language
+  ["AI-powered coding agent that helps you write, understand, and modify code", "AI-powered penetration testing platform that helps security professionals conduct authorized security assessments"],
+  ["coding agent", "security testing platform"],
+  [/\bZen\b/g, "Pro"],
   // Hide brand assets button in header context menu
   [/(<button[^>]*onClick=\{[^}]*route\("\/brand"\)[^}]*\}>[\s\S]*?<\/button>)/, ""],
 ]
