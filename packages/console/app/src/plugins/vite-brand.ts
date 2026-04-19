@@ -43,6 +43,7 @@ const REPLACEMENTS: Array<[string | RegExp, string]> = [
   ["opencode-ai", "opensploit"],
   ["opencode-bin", "opensploit-bin"],
   [/\bOpencode\b/g, "OpenSploit"],
+  ["OPENCODE", "OPENSPLOIT"],
   ["OpenCode", "OpenSploit"],
   ["opencode", "opensploit"],
   ["ANOMALY INNOVATIONS, INC.", "SILICON WORKS LTD"],
@@ -103,7 +104,7 @@ export function viteBrand(): Plugin {
     transform(code, id) {
       if (!TRANSFORM_EXTENSIONS.some((ext) => id.endsWith(ext))) return
       if (id.includes("node_modules")) return
-      if (!code.includes("opencode") && !code.includes("OpenCode") && !code.includes("Anomaly")) return
+      if (!code.includes("opencode") && !code.includes("OpenCode") && !code.includes("OPENCODE") && !code.includes("Anomaly")) return
 
       const transformed = replaceText(code)
       if (transformed === code) return
@@ -127,7 +128,7 @@ export function viteBrand(): Plugin {
               walk(full)
             } else if (extname(full) === ".mjs") {
               const original = readFileSync(full, "utf-8")
-              if (!original.includes("opencode") && !original.includes("OpenCode") && !original.includes("Anomaly") && !original.includes("anoma.ly")) continue
+              if (!original.includes("opencode") && !original.includes("OpenCode") && !original.includes("OPENCODE") && !original.includes("Anomaly") && !original.includes("anoma.ly")) continue
               const result = replaceText(original)
               if (result !== original) {
                 writeFileSync(full, result)
