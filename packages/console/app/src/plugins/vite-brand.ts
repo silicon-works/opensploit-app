@@ -45,6 +45,8 @@ const REPLACEMENTS: Array<[string | RegExp, string]> = [
   [/\bOpencode\b/g, "OpenSploit"],
   ["OpenCode", "OpenSploit"],
   ["opencode", "opensploit"],
+  ["ANOMALY INNOVATIONS, INC.", "SILICON WORKS LTD"],
+  ["Anomaly Innovations, Inc.", "Silicon Works Ltd"],
   ["Anomaly Innovations", "Silicon Works Ltd"],
   [/\bAnomaly\b/g, "Silicon Works"],
   ["anoma.ly", "opensploit.ai"],
@@ -97,7 +99,7 @@ const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
 export function viteBrand(): Plugin {
   return {
     name: "opensploit-vite-brand",
-    enforce: "pre",
+    enforce: "post",
     transform(code, id) {
       if (!TRANSFORM_EXTENSIONS.some((ext) => id.endsWith(ext))) return
       if (id.includes("node_modules")) return
@@ -107,6 +109,40 @@ export function viteBrand(): Plugin {
       if (transformed === code) return
 
       return { code: transformed, map: null }
+    },
+    // Post-build pass: Solid's SSR compiler embeds JSX text into template
+    // literal arrays that bypass Vite's transform pipeline. Process the
+    // built .mjs files directly to catch what the transform missed.
+    async closeBundle() {
+      const { readdirSync, readFileSync, writeFileSync, statSync } = await import("fs")
+      const { join, extname } = await import("path")
+
+      const outputDir = join(process.cwd(), ".output", "server", "chunks")
+      try {
+        let changed = 0
+        function walk(dir: string) {
+          for (const entry of readdirSync(dir)) {
+            const full = join(dir, entry)
+            if (statSync(full).isDirectory()) {
+              walk(full)
+            } else if (extname(full) === ".mjs") {
+              const original = readFileSync(full, "utf-8")
+              if (!original.includes("opencode") && !original.includes("OpenCode") && !original.includes("Anomaly") && !original.includes("anoma.ly")) continue
+              const result = replaceText(original)
+              if (result !== original) {
+                writeFileSync(full, result)
+                changed++
+              }
+            }
+          }
+        }
+        walk(outputDir)
+        if (changed > 0) {
+          console.log(`[brand] Post-processed ${changed} server chunks`)
+        }
+      } catch {
+        // Output dir might not exist during dev
+      }
     },
   }
 }
