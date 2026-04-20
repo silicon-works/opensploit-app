@@ -2,18 +2,26 @@ import { createMemo, createSignal, Show } from "solid-js"
 import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { useTheme } from "@tui/context/theme"
+import { useLocal } from "@tui/context/local"
+import { useKV } from "@tui/context/kv"
 import { SplitBorder } from "@tui/component/border"
 import type { AssistantMessage } from "@opencode-ai/sdk/v2"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import { useKeybind } from "../../context/keybind"
 import { Locale } from "@/util/locale"
 import { useTerminalDimensions } from "@opentui/solid"
+import { createColors, createFrames } from "../../ui/spinner"
 
 export function SubagentFooter() {
   const route = useRouteData("session")
   const sync = useSync()
+  const local = useLocal()
+  const kv = useKV()
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
   const session = createMemo(() => sync.session.get(route.sessionID))
+
+  const status = createMemo(() => sync.data.session_status?.[route.sessionID] ?? { type: "idle" })
+  const isWorking = createMemo(() => status().type !== "idle")
 
   const subagentInfo = createMemo(() => {
     const s = session()
@@ -30,6 +38,23 @@ export function SubagentFooter() {
 
     return { label, index: index + 1, total: siblings.length }
   })
+
+  const color = createMemo(() => local.agent.color(subagentInfo().label.toLowerCase()))
+
+  const spinnerDef = createMemo(() => ({
+    frames: createFrames({
+      color: color(),
+      style: "blocks",
+      inactiveFactor: 0.6,
+      minAlpha: 0.3,
+    }),
+    color: createColors({
+      color: color(),
+      style: "blocks",
+      inactiveFactor: 0.6,
+      minAlpha: 0.3,
+    }),
+  }))
 
   const usage = createMemo(() => {
     const msg = messages()
@@ -76,53 +101,70 @@ export function SubagentFooter() {
       >
         <box flexDirection="row" justifyContent="space-between" gap={1}>
           <box flexDirection="row" gap={1}>
+            <Show when={isWorking()}>
+              <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
+                <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+              </Show>
+            </Show>
             <text fg={theme.text}>
               <b>{subagentInfo().label}</b>
             </text>
-            <Show when={subagentInfo().total > 0}>
-              <text style={{ fg: theme.textMuted }}>
-                ({subagentInfo().index} of {subagentInfo().total})
-              </text>
+            <Show when={isWorking()}>
+              <text fg={theme.textMuted}>working...</text>
             </Show>
-            <Show when={usage()}>
-              {(item) => (
-                <text fg={theme.textMuted} wrapMode="none">
-                  {[item().context, item().cost].filter(Boolean).join(" · ")}
+            <Show when={!isWorking()}>
+              <Show when={subagentInfo().total > 0}>
+                <text style={{ fg: theme.textMuted }}>
+                  ({subagentInfo().index} of {subagentInfo().total})
                 </text>
-              )}
+              </Show>
+              <Show when={usage()}>
+                {(item) => (
+                  <text fg={theme.textMuted} wrapMode="none">
+                    {[item().context, item().cost].filter(Boolean).join(" · ")}
+                  </text>
+                )}
+              </Show>
             </Show>
           </box>
           <box flexDirection="row" gap={2}>
-            <box
-              onMouseOver={() => setHover("parent")}
-              onMouseOut={() => setHover(null)}
-              onMouseUp={() => command.trigger("session.parent")}
-              backgroundColor={hover() === "parent" ? theme.backgroundElement : theme.backgroundPanel}
-            >
+            <Show when={isWorking()}>
               <text fg={theme.text}>
-                Parent <span style={{ fg: theme.textMuted }}>{keybind.print("session_parent")}</span>
+                esc <span style={{ fg: theme.textMuted }}>interrupt</span>
               </text>
-            </box>
-            <box
-              onMouseOver={() => setHover("prev")}
-              onMouseOut={() => setHover(null)}
-              onMouseUp={() => command.trigger("session.child.previous")}
-              backgroundColor={hover() === "prev" ? theme.backgroundElement : theme.backgroundPanel}
-            >
-              <text fg={theme.text}>
-                Prev <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle_reverse")}</span>
-              </text>
-            </box>
-            <box
-              onMouseOver={() => setHover("next")}
-              onMouseOut={() => setHover(null)}
-              onMouseUp={() => command.trigger("session.child.next")}
-              backgroundColor={hover() === "next" ? theme.backgroundElement : theme.backgroundPanel}
-            >
-              <text fg={theme.text}>
-                Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
-              </text>
-            </box>
+            </Show>
+            <Show when={!isWorking()}>
+              <box
+                onMouseOver={() => setHover("parent")}
+                onMouseOut={() => setHover(null)}
+                onMouseUp={() => command.trigger("session.parent")}
+                backgroundColor={hover() === "parent" ? theme.backgroundElement : theme.backgroundPanel}
+              >
+                <text fg={theme.text}>
+                  Parent <span style={{ fg: theme.textMuted }}>{keybind.print("session_parent")}</span>
+                </text>
+              </box>
+              <box
+                onMouseOver={() => setHover("prev")}
+                onMouseOut={() => setHover(null)}
+                onMouseUp={() => command.trigger("session.child.previous")}
+                backgroundColor={hover() === "prev" ? theme.backgroundElement : theme.backgroundPanel}
+              >
+                <text fg={theme.text}>
+                  Prev <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle_reverse")}</span>
+                </text>
+              </box>
+              <box
+                onMouseOver={() => setHover("next")}
+                onMouseOut={() => setHover(null)}
+                onMouseUp={() => command.trigger("session.child.next")}
+                backgroundColor={hover() === "next" ? theme.backgroundElement : theme.backgroundPanel}
+              >
+                <text fg={theme.text}>
+                  Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
+                </text>
+              </box>
+            </Show>
           </box>
         </box>
       </box>
