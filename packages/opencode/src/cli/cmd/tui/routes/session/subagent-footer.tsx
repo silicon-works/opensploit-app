@@ -25,21 +25,24 @@ export function SubagentFooter() {
 
   const subagentInfo = createMemo(() => {
     const s = session()
-    if (!s) return { label: "Subagent", index: 0, total: 0 }
-    const agentMatch = s.title.match(/@(\w+) subagent/)
-    const label = agentMatch ? Locale.titlecase(agentMatch[1]) : "Subagent"
+    if (!s) return { label: "Subagent", agentName: "subagent", index: 0, total: 0 }
+    // Match agent names like "pentest/recon", "pentest/enum", etc.
+    const agentMatch = s.title.match(/@([^\s)]+)\s+subagent/)
+    const agentName = agentMatch?.[1] ?? "subagent"
+    const shortName = agentName.includes("/") ? agentName.split("/").pop()! : agentName
+    const label = Locale.titlecase(shortName)
 
-    if (!s.parentID) return { label, index: 0, total: 0 }
+    if (!s.parentID) return { label, agentName, index: 0, total: 0 }
 
     const siblings = sync.data.session
       .filter((x) => x.parentID === s.parentID)
       .toSorted((a, b) => a.time.created - b.time.created)
     const index = siblings.findIndex((x) => x.id === s.id)
 
-    return { label, index: index + 1, total: siblings.length }
+    return { label, agentName, index: index + 1, total: siblings.length }
   })
 
-  const color = createMemo(() => local.agent.color(subagentInfo().label.toLowerCase()))
+  const color = createMemo(() => local.agent.color(subagentInfo().agentName))
 
   const spinnerDef = createMemo(() => ({
     frames: createFrames({
