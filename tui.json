@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opensploit.ai/tui.json",
+  "plugin": [
+    "file:///home/nightshade/silicon-works/opensploit-plugin"
+  ]
+}

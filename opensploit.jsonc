@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opensploit.ai/config.json",
+  "plugin": [
+    "file:///home/nightshade/silicon-works/opensploit-plugin"
+  ]
+}
