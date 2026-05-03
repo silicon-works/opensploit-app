@@ -17,6 +17,7 @@ import { ModelID, ProviderID } from "@/provider/schema"
 import { Effect, Layer, Context } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import { isOverflow as overflow } from "./overflow"
+import { Todo } from "./todo"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -68,6 +69,7 @@ export namespace SessionCompaction {
     | Plugin.Service
     | SessionProcessor.Service
     | Provider.Service
+    | Todo.Service
   > = Layer.effect(
     Service,
     Effect.gen(function* () {
@@ -78,6 +80,7 @@ export namespace SessionCompaction {
       const plugin = yield* Plugin.Service
       const processors = yield* SessionProcessor.Service
       const provider = yield* Provider.Service
+      const todos = yield* Todo.Service
 
       const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
         tokens: MessageV2.Assistant["tokens"]
@@ -178,11 +181,31 @@ export namespace SessionCompaction {
         const model = agent.model
           ? yield* provider.getModel(agent.model.providerID, agent.model.modelID)
           : yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID)
+
+        // Inject the per-agent objective + current todo list into the
+        // summarizer's prompt so they survive verbatim in the summary.
+        const sessionInfo = yield* session.get(input.sessionID)
+        const todoList: Todo.Info[] = yield* todos
+          .get(input.sessionID)
+          .pipe(Effect.catchCause(() => Effect.succeed([] as Todo.Info[])))
+        const contextParts: string[] = []
+        if (sessionInfo.objective) {
+          contextParts.push(
+            `CRITICAL — PRESERVE IN SUMMARY:\nThis agent's assigned objective is: "${sessionInfo.objective}"\nThe agent MUST stay within this scope. Include this objective verbatim in the summary.`,
+          )
+        }
+        if (todoList.length > 0) {
+          const todoSnapshot = todoList.map((t: Todo.Info) => `- [${t.status}] ${t.content}`).join("\n")
+          contextParts.push(
+            `TASK PROGRESS — PRESERVE IN SUMMARY:\nThe agent's task list at time of compaction:\n${todoSnapshot}\nInclude this task list with status markers in the summary. Tasks marked [completed] are DONE and must not be repeated. Tasks marked [in_progress] or [pending] are what remain.`,
+          )
+        }
+
         // Allow plugins to inject context or replace compaction prompt.
         const compacting = yield* plugin.trigger(
           "experimental.session.compacting",
           { sessionID: input.sessionID },
-          { context: [], prompt: undefined },
+          { context: contextParts, prompt: undefined },
         )
         const defaultPrompt = `Provide a detailed prompt for continuing our conversation above.
 Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.
@@ -335,11 +358,25 @@ When constructing the summary, try to stick to this template:
                 agent: userMessage.agent,
                 model: userMessage.model,
               })
+              // Re-inject objective + todo state into the continue message so
+              // the agent resumes within scope and skips already-completed tasks.
+              const continueParts: string[] = []
+              if (sessionInfo.objective) {
+                continueParts.push(`Continue your assigned task: ${sessionInfo.objective}`)
+                continueParts.push("Stay within your assigned scope — do not perform work outside this objective.")
+              }
+              if (todoList.length > 0) {
+                const todoSnapshot = todoList.map((t: Todo.Info) => `- [${t.status}] ${t.content}`).join("\n")
+                continueParts.push(`Task progress at last checkpoint:\n${todoSnapshot}`)
+                continueParts.push("Resume from where you left off. Do not repeat completed tasks.")
+              }
+              const overflowPrefix = input.overflow
+                ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
+                : ""
               const text =
-                (input.overflow
-                  ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
-                  : "") +
-                "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+                continueParts.length > 0
+                  ? overflowPrefix + continueParts.join("\n\n")
+                  : overflowPrefix + "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
               yield* session.updatePart({
                 id: PartID.ascending(),
                 messageID: continueMsg.id,
@@ -408,6 +445,7 @@ When constructing the summary, try to stick to this template:
       Layer.provide(Plugin.defaultLayer),
       Layer.provide(Bus.layer),
       Layer.provide(Config.defaultLayer),
+      Layer.provide(Todo.defaultLayer),
     ),
   )
 }

@@ -20,6 +20,7 @@ import { MessageV2 } from "../../src/session/message-v2"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
 import { SessionSummary } from "../../src/session/summary"
+import { Todo } from "../../src/session/todo"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import type { Provider } from "../../src/provider/provider"
 import * as SessionProcessorModule from "../../src/session/processor"
@@ -198,6 +199,7 @@ function runtime(result: "continue" | "compact", plugin = Plugin.defaultLayer, p
       Layer.provide(plugin),
       Layer.provide(bus),
       Layer.provide(Config.defaultLayer),
+      Layer.provide(Todo.defaultLayer),
     ),
   )
 }
@@ -209,6 +211,7 @@ const deps = Layer.mergeAll(
   Plugin.defaultLayer,
   Bus.layer,
   Config.defaultLayer,
+  Todo.defaultLayer,
 )
 
 const env = Layer.mergeAll(
@@ -257,6 +260,7 @@ function liveRuntime(layer: Layer.Layer<LLM.Service>, provider = ProviderTest.fa
       Layer.provide(status),
       Layer.provide(bus),
       Layer.provide(Config.defaultLayer),
+      Layer.provide(Todo.defaultLayer),
     ),
   )
 }
