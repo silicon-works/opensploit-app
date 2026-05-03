@@ -140,6 +140,33 @@ export namespace MessageV2 {
   })
   export type ReasoningPart = z.infer<typeof ReasoningPart>
 
+  /**
+   * Structured Thought-Verify-Action-Result reasoning block. Pentest agents
+   * are instructed (via their system prompt) to format their reasoning with
+   * <thought>/<verify>/<action>/<result> tags. The session processor parses
+   * those tags out of streaming text, strips them from the visible TextPart,
+   * and stores the structured fields here for downstream consumers (e.g.
+   * trajectory recording for fine-tuning data).
+   */
+  export const TVARPart = PartBase.extend({
+    type: z.literal("tvar"),
+    thought: z.string(), // What am I trying to accomplish?
+    verify: z.string(), // Is this the right approach?
+    action: z.string().optional(), // Tool call description (before execution)
+    result: z.string().optional(), // What did I learn? (after execution)
+    toolCallID: z.string().optional(), // Reference to associated ToolPart
+    phase: z
+      .enum(["reconnaissance", "enumeration", "exploitation", "post_exploitation", "reporting"])
+      .optional(),
+    time: z.object({
+      start: z.number(),
+      end: z.number().optional(),
+    }),
+  }).meta({
+    ref: "TVARPart",
+  })
+  export type TVARPart = z.infer<typeof TVARPart>
+
   const FilePartSourceBase = z.object({
     text: z
       .object({
@@ -388,6 +415,7 @@ export namespace MessageV2 {
       TextPart,
       SubtaskPart,
       ReasoningPart,
+      TVARPart,
       FilePart,
       ToolPart,
       StepStartPart,

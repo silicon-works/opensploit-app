@@ -54,7 +54,10 @@ export namespace ShareNext {
       }
     | {
         type: "part"
-        data: SDK.Part
+        // Use internal MessageV2.Part instead of SDK.Part so the local
+        // TVARPart type (defined in message-v2.ts but not in the published
+        // SDK schema) is assignable here.
+        data: MessageV2.Part
       }
     | {
         type: "session_diff"

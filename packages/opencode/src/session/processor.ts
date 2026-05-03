@@ -11,6 +11,7 @@ import { LLM } from "./llm"
 import { MessageV2 } from "./message-v2"
 import { isOverflow } from "./overflow"
 import { PartID } from "./schema"
+import { parseTVAR, extractPhase, stripTVARBlocks } from "./tvar-parser"
 import type { SessionID } from "./schema"
 import { SessionRetry } from "./retry"
 import { SessionStatus } from "./status"
@@ -303,6 +304,18 @@ export namespace SessionProcessor {
               }))
 
               const parts = MessageV2.parts(ctx.assistantMessage.id)
+
+              // Link the most recent unlinked TVAR block (the agent's
+              // <action>) to this tool call so downstream consumers can
+              // pair the structured reasoning with the tool it justified.
+              const unlinkedTVAR = parts.findLast(
+                (p): p is MessageV2.TVARPart => p.type === "tvar" && !p.toolCallID,
+              )
+              if (unlinkedTVAR) {
+                unlinkedTVAR.toolCallID = value.toolCallId
+                yield* session.updatePart(unlinkedTVAR)
+              }
+
               const recentParts = parts.slice(-DOOM_LOOP_THRESHOLD)
 
               if (
@@ -446,6 +459,36 @@ export namespace SessionProcessor {
                 ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
               }
               if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
+
+              // Parse <thought>/<verify>/<action>/<result> blocks out of the
+              // finalized text into structured TVARParts and strip them from
+              // the visible text. The structured parts are consumed by the
+              // trajectory recorder downstream.
+              {
+                const tvarBlocks = parseTVAR(ctx.currentText.text)
+                for (const block of tvarBlocks) {
+                  const tvarPart: MessageV2.TVARPart = {
+                    id: PartID.ascending(),
+                    messageID: ctx.assistantMessage.id,
+                    sessionID: ctx.assistantMessage.sessionID,
+                    type: "tvar",
+                    thought: block.thought,
+                    verify: block.verify,
+                    action: block.action,
+                    result: block.result,
+                    phase: extractPhase(block),
+                    time: {
+                      start: ctx.currentText.time?.start ?? Date.now(),
+                      end: Date.now(),
+                    },
+                  }
+                  yield* session.updatePart(tvarPart)
+                }
+                if (tvarBlocks.length > 0) {
+                  ctx.currentText.text = stripTVARBlocks(ctx.currentText.text, tvarBlocks)
+                }
+              }
+
               yield* session.updatePart(ctx.currentText)
               ctx.currentText = undefined
               return
