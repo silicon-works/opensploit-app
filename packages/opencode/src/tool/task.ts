@@ -18,6 +18,13 @@ export interface TaskPromptOps {
 
 const id = "task"
 
+// Pentest sub-agents are identified by the `pentest/` prefix on the
+// subagent_type string. Their permission ruleset is built differently from
+// custom user-defined sub-agents — see the spawn permission block below.
+function isPentestSubagent(agentName: string): boolean {
+  return agentName.startsWith("pentest/")
+}
+
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
   prompt: z.string().describe("The task for the agent to perform"),
@@ -41,6 +48,12 @@ export const TaskTool = Tool.define(
     const run = Effect.fn("TaskTool.execute")(function* (params: z.infer<typeof parameters>, ctx: Tool.Context) {
       const cfg = yield* config.get()
 
+      const isPentest = isPentestSubagent(params.subagent_type)
+      const isToolRunner = params.subagent_type === "pentest/tool-runner"
+
+      // Permission check resolves against the merged ruleset (agent +
+      // session). Allow rules added at spawn time (see below) cover the
+      // valid spawn paths so this resolves silently without prompting.
       if (!ctx.extra?.bypassAgentCheck) {
         yield* ctx.ask({
           permission: id,
@@ -58,8 +71,20 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`))
       }
 
+      // For non-pentest agents: did the agent declare these tools in its
+      // own permission ruleset? If yes, we don't inject a session-level
+      // deny for them.
       const canTask = next.permission.some((rule) => rule.permission === id)
       const canTodo = next.permission.some((rule) => rule.permission === "todowrite")
+
+      // Caller's depth determines what the spawned pentest sub-agent can spawn:
+      // master (no parent) → spawned child can recurse on pentest/*;
+      // sub-agent (has parent) → spawned child can only spawn pentest/tool-runner.
+      const callerSession = yield* sessions
+        .get(ctx.sessionID)
+        .pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+      const callerHasParent = !!callerSession?.parentID
+      const canChildSpawn = isPentest && !callerHasParent
 
       const taskID = params.task_id
       const session = taskID
@@ -70,8 +95,11 @@ export const TaskTool = Tool.define(
         (yield* sessions.create({
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
+          objective: params.prompt,
           permission: [
-            ...(canTodo
+            // todowrite: pentest agents always get it; non-pentest follows their
+            // own declared permission (canTodo).
+            ...((isPentest || canTodo)
               ? []
               : [
                   {
@@ -80,15 +108,55 @@ export const TaskTool = Tool.define(
                     action: "deny" as const,
                   },
                 ]),
-            ...(canTask
-              ? []
-              : [
-                  {
-                    permission: id,
-                    pattern: "*" as const,
-                    action: "deny" as const,
-                  },
-                ]),
+            // task spawn permission for the new sub-agent:
+            //  - pentest/tool-runner: always a leaf executor, never spawns anything
+            //  - other pentest at depth 0 (master spawning): allowed to spawn pentest/*
+            //  - other pentest at depth 1+ (sub-agent spawning): allowed to spawn ONLY
+            //    pentest/tool-runner; further pentest/* spawns are denied
+            //  - non-pentest: governed by the agent's own declared task permission
+            ...(isPentest
+              ? (isToolRunner
+                  ? [
+                      {
+                        permission: id,
+                        pattern: "*" as const,
+                        action: "deny" as const,
+                      },
+                    ]
+                  : (canChildSpawn
+                      ? [
+                          {
+                            permission: id,
+                            pattern: "*" as const,
+                            action: "deny" as const,
+                          },
+                          {
+                            permission: id,
+                            pattern: "pentest/*" as const,
+                            action: "allow" as const,
+                          },
+                        ]
+                      : [
+                          {
+                            permission: id,
+                            pattern: "*" as const,
+                            action: "deny" as const,
+                          },
+                          {
+                            permission: id,
+                            pattern: "pentest/tool-runner" as const,
+                            action: "allow" as const,
+                          },
+                        ]))
+              : (canTask
+                  ? []
+                  : [
+                      {
+                        permission: id,
+                        pattern: "*" as const,
+                        action: "deny" as const,
+                      },
+                    ])),
             ...(cfg.experimental?.primary_tools?.map((item) => ({
               pattern: "*",
               action: "allow" as const,
@@ -138,8 +206,19 @@ export const TaskTool = Tool.define(
               },
               agent: next.name,
               tools: {
-                ...(canTodo ? {} : { todowrite: false }),
-                ...(canTask ? {} : { task: false }),
+                // todowrite tool: pentest agents always have it; non-pentest
+                // agents only when they declared todowrite in their permission.
+                ...((isPentest || canTodo) ? {} : { todowrite: false }),
+                // task tool:
+                //  - tool-runner never sees it (leaf executor)
+                //  - other pentest agents always see it; the permission rules
+                //    above decide which subagent_types are actually allowed
+                //  - non-pentest agents only when they declared task themselves
+                ...(isToolRunner
+                  ? { task: false }
+                  : (isPentest
+                      ? {}
+                      : (canTask ? {} : { task: false }))),
                 ...Object.fromEntries((cfg.experimental?.primary_tools ?? []).map((item) => [item, false])),
               },
               parts,

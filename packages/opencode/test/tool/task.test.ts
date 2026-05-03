@@ -384,4 +384,207 @@ describe("tool.task", () => {
       },
     ),
   )
+
+  // -----------------------------------------------------------------------
+  // Pentest depth limit + tool-runner exemption
+  // -----------------------------------------------------------------------
+  // Behavior under test:
+  //  - Master spawning pentest/* → spawn gets `task: pentest/* allow` (standard chain).
+  //  - Depth-1 (sub-agent) spawning pentest/* → spawn gets `task: pentest/tool-runner allow` ONLY.
+  //  - Spawning pentest/tool-runner at ANY depth → spawn is always a leaf (no allow rule, task tool disabled).
+  //  - Pentest sub-agents always have todowrite (no session-level deny injected).
+  it.live("execute: master spawning pentest/recon → spawn gets pentest/* allow rule", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          const { chat, assistant } = yield* seed()
+          const tool = yield* TaskTool
+          const def = yield* tool.init()
+          let seen: SessionPrompt.PromptInput | undefined
+          const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+          const result = yield* def.execute(
+            {
+              description: "scan target",
+              prompt: "discover services on 10.10.10.1",
+              subagent_type: "pentest/recon",
+            },
+            {
+              sessionID: chat.id,
+              messageID: assistant.id,
+              agent: "build",
+              abort: new AbortController().signal,
+              extra: { promptOps },
+              messages: [],
+              metadata: () => Effect.void,
+              ask: () => Effect.void,
+            },
+          )
+
+          const child = yield* sessions.get(result.metadata.sessionId)
+          expect(child.parentID).toBe(chat.id)
+          // No todowrite deny — pentest agents always keep todowrite.
+          expect(child.permission?.some((r) => r.permission === "todowrite" && r.action === "deny")).toBe(false)
+          // task: blanket deny + pentest/* allow (standard chain at depth-1).
+          expect(child.permission).toEqual(
+            expect.arrayContaining([
+              { permission: "task", pattern: "*", action: "deny" },
+              { permission: "task", pattern: "pentest/*", action: "allow" },
+            ]),
+          )
+          // task should NOT be tool-runner-only at this depth.
+          expect(child.permission?.some((r) => r.pattern === "pentest/tool-runner")).toBe(false)
+          // tools field: task IS available (no `task: false`); todowrite IS available.
+          expect(seen?.tools?.task).toBeUndefined()
+          expect(seen?.tools?.todowrite).toBeUndefined()
+        }),
+      {
+        config: {
+          agent: {
+            "pentest/recon": {
+              mode: "subagent",
+              permission: { todowrite: "allow", task: { "*": "deny", "pentest/*": "allow" } },
+            },
+          },
+        },
+      },
+    ),
+  )
+
+  it.live("execute: depth-1 sub-agent spawning pentest/research → spawn gets tool-runner-only allow", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          // Create a master, then a depth-1 sub-agent (parent=master) that spawns research.
+          const { chat: master } = yield* seed("Master")
+          const sub = yield* sessions.create({ parentID: master.id, title: "depth-1 sub" })
+          const subAssistant: MessageV2.Assistant = {
+            id: MessageID.ascending(),
+            role: "assistant",
+            parentID: (yield* sessions.updateMessage({
+              id: MessageID.ascending(),
+              role: "user",
+              sessionID: sub.id,
+              agent: "pentest/recon",
+              model: ref,
+              time: { created: Date.now() },
+            })).id,
+            sessionID: sub.id,
+            mode: "build",
+            agent: "pentest/recon",
+            cost: 0,
+            path: { cwd: "/tmp", root: "/tmp" },
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            modelID: ref.modelID,
+            providerID: ref.providerID,
+            time: { created: Date.now() },
+          }
+          yield* sessions.updateMessage(subAssistant)
+
+          const tool = yield* TaskTool
+          const def = yield* tool.init()
+          let seen: SessionPrompt.PromptInput | undefined
+          const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+          const result = yield* def.execute(
+            {
+              description: "research CVE",
+              prompt: "find Cisco Expressway CVEs",
+              subagent_type: "pentest/research",
+            },
+            {
+              sessionID: sub.id,
+              messageID: subAssistant.id,
+              agent: "pentest/recon",
+              abort: new AbortController().signal,
+              extra: { promptOps },
+              messages: [],
+              metadata: () => Effect.void,
+              ask: () => Effect.void,
+            },
+          )
+
+          const grandchild = yield* sessions.get(result.metadata.sessionId)
+          expect(grandchild.parentID).toBe(sub.id)
+          // No todowrite deny.
+          expect(grandchild.permission?.some((r) => r.permission === "todowrite" && r.action === "deny")).toBe(false)
+          // task: blanket deny + tool-runner allow ONLY (NOT pentest/* allow).
+          expect(grandchild.permission).toEqual(
+            expect.arrayContaining([
+              { permission: "task", pattern: "*", action: "deny" },
+              { permission: "task", pattern: "pentest/tool-runner", action: "allow" },
+            ]),
+          )
+          expect(grandchild.permission?.some((r) => r.pattern === "pentest/*")).toBe(false)
+          // task tool still present in LLM tools field (so it can call task("pentest/tool-runner"))
+          expect(seen?.tools?.task).toBeUndefined()
+        }),
+      {
+        config: {
+          agent: {
+            "pentest/recon": {
+              mode: "subagent",
+              permission: { todowrite: "allow", task: { "*": "deny", "pentest/*": "allow" } },
+            },
+            "pentest/research": {
+              mode: "subagent",
+              permission: { todowrite: "allow", task: { "*": "deny", "pentest/*": "allow" } },
+            },
+          },
+        },
+      },
+    ),
+  )
+
+  it.live("execute: spawning pentest/tool-runner → always a leaf (no allow rule, task tool disabled)", () =>
+    provideTmpdirInstance(
+      () =>
+        Effect.gen(function* () {
+          const sessions = yield* Session.Service
+          const { chat, assistant } = yield* seed()
+          const tool = yield* TaskTool
+          const def = yield* tool.init()
+          let seen: SessionPrompt.PromptInput | undefined
+          const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+          const result = yield* def.execute(
+            {
+              description: "run nmap once",
+              prompt: "execute nmap -sT -p 80 10.10.10.1",
+              subagent_type: "pentest/tool-runner",
+            },
+            {
+              sessionID: chat.id,
+              messageID: assistant.id,
+              agent: "build",
+              abort: new AbortController().signal,
+              extra: { promptOps },
+              messages: [],
+              metadata: () => Effect.void,
+              ask: () => Effect.void,
+            },
+          )
+
+          const child = yield* sessions.get(result.metadata.sessionId)
+          // Tool-runner gets ONLY task: * deny (no allow rule of any kind).
+          expect(child.permission?.filter((r) => r.permission === "task")).toEqual([
+            { permission: "task", pattern: "*", action: "deny" },
+          ])
+          // task tool is removed from LLM tool list (tools.task === false).
+          expect(seen?.tools?.task).toBe(false)
+        }),
+      {
+        config: {
+          agent: {
+            "pentest/tool-runner": {
+              mode: "subagent",
+              permission: { todowrite: "allow", task: { "*": "deny" } },
+            },
+          },
+        },
+      },
+    ),
+  )
 })
