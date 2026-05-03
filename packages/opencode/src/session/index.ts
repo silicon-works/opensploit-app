@@ -72,6 +72,7 @@ export namespace Session {
       share,
       revert,
       permission: row.permission ?? undefined,
+      objective: row.objective ?? undefined,
       time: {
         created: row.time_created,
         updated: row.time_updated,
@@ -98,6 +99,7 @@ export namespace Session {
       summary_diffs: info.summary?.diffs,
       revert: info.revert ?? null,
       permission: info.permission,
+      objective: info.objective,
       time_created: info.time.created,
       time_updated: info.time.updated,
       time_compacting: info.time.compacting,
@@ -153,6 +155,7 @@ export namespace Session {
           diff: z.string().optional(),
         })
         .optional(),
+      objective: z.string().optional(),
     })
     .meta({
       ref: "Session",
@@ -182,6 +185,7 @@ export namespace Session {
       parentID: SessionID.zod.optional(),
       title: z.string().optional(),
       permission: Info.shape.permission,
+      objective: z.string().optional(),
       workspaceID: WorkspaceID.zod.optional(),
     })
     .optional()
@@ -337,6 +341,7 @@ export namespace Session {
       parentID?: SessionID
       title?: string
       permission?: Permission.Ruleset
+      objective?: string
       workspaceID?: WorkspaceID
     }) => Effect.Effect<Info>
     readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info>
@@ -403,6 +408,7 @@ export namespace Session {
         workspaceID?: WorkspaceID
         directory: string
         permission?: Permission.Ruleset
+        objective?: string
       }) {
         const ctx = yield* InstanceState.context
         const result: Info = {
@@ -415,6 +421,7 @@ export namespace Session {
           parentID: input.parentID,
           title: input.title ?? createDefaultTitle(!!input.parentID),
           permission: input.permission,
+          objective: input.objective,
           time: {
             created: Date.now(),
             updated: Date.now(),
@@ -524,6 +531,7 @@ export namespace Session {
         parentID?: SessionID
         title?: string
         permission?: Permission.Ruleset
+        objective?: string
         workspaceID?: WorkspaceID
       }) {
         const directory = yield* InstanceState.directory
@@ -532,6 +540,7 @@ export namespace Session {
           directory,
           title: input?.title,
           permission: input?.permission,
+          objective: input?.objective,
           workspaceID: input?.workspaceID,
         })
       })
