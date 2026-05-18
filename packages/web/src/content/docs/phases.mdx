@@ -24,7 +24,6 @@ The first phase focuses on understanding the attack surface:
 
 **Key Tools:**
 - `nmap` - Port scanning and service detection
-- `web-fingerprint` - Web technology identification
 - `whatweb` - Additional web fingerprinting
 
 **Example:**
@@ -162,7 +161,7 @@ Each phase has recommended and discouraged tools:
 
 | Phase | Recommended | Discouraged |
 |-------|-------------|-------------|
-| Reconnaissance | nmap, web-fingerprint | sqlmap, metasploit |
+| Reconnaissance | nmap | sqlmap, metasploit |
 | Enumeration | ffuf, nuclei, nikto | exploitation tools |
 | Exploitation | sqlmap, hydra | reconnaissance tools |
 | Post-Exploitation | privesc, tunnel | scanning tools |
