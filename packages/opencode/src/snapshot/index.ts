@@ -1,72 +1,66 @@
-import { Cause, Duration, Effect, Layer, Schedule, Semaphore, Context, Stream } from "effect"
+import { Cause, Duration, Effect, Layer, Schedule, Schema, Semaphore, Context } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { formatPatch, structuredPatch } from "diff"
 import path from "path"
-import z from "zod"
-import * as CrossSpawnSpawner from "@/effect/cross-spawn-spawner"
+import { AppProcess } from "@opencode-ai/core/process"
 import { InstanceState } from "@/effect/instance-state"
-import { AppFileSystem } from "@opencode-ai/shared/filesystem"
-import { Hash } from "@opencode-ai/shared/util/hash"
-import { Config } from "../config/config"
-import { Global } from "../global"
-import { Log } from "../util/log"
+import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { Hash } from "@opencode-ai/core/util/hash"
+import { Config } from "@/config/config"
+import { Global } from "@opencode-ai/core/global"
+import * as Log from "@opencode-ai/core/util/log"
 
-export namespace Snapshot {
-  export const Patch = z.object({
-    hash: z.string(),
-    files: z.string().array(),
-  })
-  export type Patch = z.infer<typeof Patch>
+export const Patch = Schema.Struct({
+  hash: Schema.String,
+  files: Schema.mutable(Schema.Array(Schema.String)),
+})
+export type Patch = typeof Patch.Type
 
-  export const FileDiff = z
-    .object({
-      file: z.string(),
-      patch: z.string(),
-      additions: z.number(),
-      deletions: z.number(),
-      status: z.enum(["added", "deleted", "modified"]).optional(),
-    })
-    .meta({
-      ref: "SnapshotFileDiff",
-    })
-  export type FileDiff = z.infer<typeof FileDiff>
+export const FileDiff = Schema.Struct({
+  // Optional because legacy/imported `summary_diffs` on disk may omit
+  // file details and patch text. Required Schema rejected the whole
+  // session response and broke session loading on Desktop.
+  file: Schema.optional(Schema.String),
+  patch: Schema.optional(Schema.String),
+  additions: Schema.Finite,
+  deletions: Schema.Finite,
+  status: Schema.optional(Schema.Literals(["added", "deleted", "modified"])),
+}).annotate({ identifier: "SnapshotFileDiff" })
+export type FileDiff = typeof FileDiff.Type
 
-  const log = Log.create({ service: "snapshot" })
-  const prune = "7.days"
-  const limit = 2 * 1024 * 1024
-  const core = ["-c", "core.longpaths=true", "-c", "core.symlinks=true"]
-  const cfg = ["-c", "core.autocrlf=false", ...core]
-  const quote = [...cfg, "-c", "core.quotepath=false"]
-  interface GitResult {
-    readonly code: ChildProcessSpawner.ExitCode
-    readonly text: string
-    readonly stderr: string
-  }
+const log = Log.create({ service: "snapshot" })
+const prune = "7.days"
+const limit = 2 * 1024 * 1024
+const core = ["-c", "core.longpaths=true", "-c", "core.symlinks=true"]
+const cfg = ["-c", "core.autocrlf=false", ...core]
+const quote = [...cfg, "-c", "core.quotepath=false"]
+interface GitResult {
+  readonly code: ChildProcessSpawner.ExitCode
+  readonly text: string
+  readonly stderr: string
+}
 
-  type State = Omit<Interface, "init">
+type State = Omit<Interface, "init">
 
-  export interface Interface {
-    readonly init: () => Effect.Effect<void>
-    readonly cleanup: () => Effect.Effect<void>
-    readonly track: () => Effect.Effect<string | undefined>
-    readonly patch: (hash: string) => Effect.Effect<Snapshot.Patch>
-    readonly restore: (snapshot: string) => Effect.Effect<void>
-    readonly revert: (patches: Snapshot.Patch[]) => Effect.Effect<void>
-    readonly diff: (hash: string) => Effect.Effect<string>
-    readonly diffFull: (from: string, to: string) => Effect.Effect<Snapshot.FileDiff[]>
-  }
+export interface Interface {
+  readonly init: () => Effect.Effect<void>
+  readonly cleanup: () => Effect.Effect<void>
+  readonly track: () => Effect.Effect<string | undefined>
+  readonly patch: (hash: string) => Effect.Effect<Patch>
+  readonly restore: (snapshot: string) => Effect.Effect<void>
+  readonly revert: (patches: Patch[]) => Effect.Effect<void>
+  readonly diff: (hash: string) => Effect.Effect<string>
+  readonly diffFull: (from: string, to: string) => Effect.Effect<FileDiff[]>
+}
 
-  export class Service extends Context.Service<Service, Interface>()("@opencode/Snapshot") {}
+export class Service extends Context.Service<Service, Interface>()("@opencode/Snapshot") {}
 
-  export const layer: Layer.Layer<
-    Service,
-    never,
-    AppFileSystem.Service | ChildProcessSpawner.ChildProcessSpawner | Config.Service
-  > = Layer.effect(
+export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProcess.Service | Config.Service> =
+  Layer.effect(
     Service,
     Effect.gen(function* () {
       const fs = yield* AppFileSystem.Service
-      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const appProcess = yield* AppProcess.Service
       const config = yield* Config.Service
       const locks = new Map<string, Semaphore.Semaphore>()
 
@@ -90,34 +84,25 @@ export namespace Snapshot {
 
           const args = (cmd: string[]) => ["--git-dir", state.gitdir, "--work-tree", state.worktree, ...cmd]
 
-          const enc = new TextEncoder()
-          const feed = (list: string[]) => Stream.make(enc.encode(list.join("\0") + "\0"))
+          const feed = (list: string[]) => list.join("\0") + "\0"
 
           const git = Effect.fnUntraced(
-            function* (
-              cmd: string[],
-              opts?: { cwd?: string; env?: Record<string, string>; stdin?: ChildProcess.CommandInput },
-            ) {
-              const proc = ChildProcess.make("git", cmd, {
-                cwd: opts?.cwd,
-                env: opts?.env,
-                extendEnv: true,
-                stdin: opts?.stdin,
-              })
-              const handle = yield* spawner.spawn(proc)
-              const [text, stderr] = yield* Effect.all(
-                [Stream.mkString(Stream.decodeText(handle.stdout)), Stream.mkString(Stream.decodeText(handle.stderr))],
-                { concurrency: 2 },
+            function* (cmd: string[], opts?: { cwd?: string; env?: Record<string, string>; stdin?: string }) {
+              const result = yield* appProcess.run(
+                ChildProcess.make("git", cmd, { cwd: opts?.cwd, env: opts?.env, extendEnv: true }),
+                { stdin: opts?.stdin },
               )
-              const code = yield* handle.exitCode
-              return { code, text, stderr } satisfies GitResult
+              return {
+                code: ChildProcessSpawner.ExitCode(result.exitCode),
+                text: result.stdout.toString("utf8"),
+                stderr: result.stderr.toString("utf8"),
+              } satisfies GitResult
             },
-            Effect.scoped,
             Effect.catch((err) =>
               Effect.succeed({
                 code: ChildProcessSpawner.ExitCode(1),
                 text: "",
-                stderr: String(err),
+                stderr: err instanceof Error ? err.message : String(err),
               }),
             ),
           )
@@ -375,7 +360,7 @@ export namespace Snapshot {
             )
           })
 
-          const revert = Effect.fnUntraced(function* (patches: Snapshot.Patch[]) {
+          const revert = Effect.fnUntraced(function* (patches: Patch[]) {
             return yield* locked(
               Effect.gen(function* () {
                 const ops: { hash: string; file: string; rel: string }[] = []
@@ -570,24 +555,21 @@ export namespace Snapshot {
                     })
                     if (!refs.length) return new Map<string, { before: string; after: string }>()
 
-                    const proc = ChildProcess.make("git", [...cfg, ...args(["cat-file", "--batch"])], {
-                      cwd: state.directory,
-                      extendEnv: true,
-                      stdin: Stream.make(new TextEncoder().encode(refs.map((item) => item.ref).join("\n") + "\n")),
-                    })
-                    const handle = yield* spawner.spawn(proc)
-                    const [out, err] = yield* Effect.all(
-                      [Stream.mkUint8Array(handle.stdout), Stream.mkString(Stream.decodeText(handle.stderr))],
-                      { concurrency: 2 },
+                    const batch = yield* appProcess.run(
+                      ChildProcess.make("git", [...cfg, ...args(["cat-file", "--batch"])], {
+                        cwd: state.directory,
+                        extendEnv: true,
+                      }),
+                      { stdin: refs.map((item) => item.ref).join("\n") + "\n" },
                     )
-                    const code = yield* handle.exitCode
-                    if (code !== 0) {
+                    if (batch.exitCode !== 0) {
                       log.info("git cat-file --batch failed during snapshot diff, falling back to per-file git show", {
-                        stderr: err,
+                        stderr: batch.stderr.toString("utf8"),
                         refs: refs.length,
                       })
                       return
                     }
+                    const out = batch.stdout
 
                     const fail = (msg: string, extra?: Record<string, string>) => {
                       log.info(msg, { ...extra, refs: refs.length })
@@ -651,7 +633,7 @@ export namespace Snapshot {
                   ),
                 )
 
-                const result: Snapshot.FileDiff[] = []
+                const result: FileDiff[] = []
                 const status = new Map<string, "added" | "deleted" | "modified">()
 
                 const statuses = yield* git(
@@ -758,7 +740,7 @@ export namespace Snapshot {
         restore: Effect.fn("Snapshot.restore")(function* (snapshot: string) {
           return yield* InstanceState.useEffect(state, (s) => s.restore(snapshot))
         }),
-        revert: Effect.fn("Snapshot.revert")(function* (patches: Snapshot.Patch[]) {
+        revert: Effect.fn("Snapshot.revert")(function* (patches: Patch[]) {
           return yield* InstanceState.useEffect(state, (s) => s.revert(patches))
         }),
         diff: Effect.fn("Snapshot.diff")(function* (hash: string) {
@@ -771,9 +753,10 @@ export namespace Snapshot {
     }),
   )
 
-  export const defaultLayer = layer.pipe(
-    Layer.provide(CrossSpawnSpawner.defaultLayer),
-    Layer.provide(AppFileSystem.defaultLayer),
-    Layer.provide(Config.defaultLayer),
-  )
-}
+export const defaultLayer = layer.pipe(
+  Layer.provide(AppProcess.defaultLayer),
+  Layer.provide(AppFileSystem.defaultLayer),
+  Layer.provide(Config.defaultLayer),
+)
+
+export * as Snapshot from "."

@@ -6,11 +6,10 @@ import { useLocal } from "@tui/context/local"
 import { useKV } from "@tui/context/kv"
 import { SplitBorder } from "@tui/component/border"
 import type { AssistantMessage } from "@opencode-ai/sdk/v2"
-import { useCommandDialog } from "@tui/component/dialog-command"
-import { useKeybind } from "../../context/keybind"
 import { Locale } from "@/util/locale"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createColors, createFrames } from "../../ui/spinner"
+import { useCommandShortcut, useOpencodeKeymap } from "../../keymap"
 
 export function SubagentFooter() {
   const route = useRouteData("session")
@@ -70,7 +69,7 @@ export function SubagentFooter() {
 
     const model = sync.data.provider.find((item) => item.id === last.providerID)?.models[last.modelID]
     const pct = model?.limit.context ? `${Math.round((tokens / model.limit.context) * 100)}%` : undefined
-    const cost = msg.reduce((sum, item) => sum + (item.role === "assistant" ? item.cost : 0), 0)
+    const cost = session()?.cost ?? 0
 
     const money = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -84,10 +83,12 @@ export function SubagentFooter() {
   })
 
   const { theme } = useTheme()
-  const keybind = useKeybind()
-  const command = useCommandDialog()
+  const keymap = useOpencodeKeymap()
+  const parentShortcut = useCommandShortcut("session.parent")
+  const previousShortcut = useCommandShortcut("session.child.previous")
+  const nextShortcut = useCommandShortcut("session.child.next")
   const [hover, setHover] = createSignal<"parent" | "prev" | "next" | null>(null)
-  const dimensions = useTerminalDimensions()
+  useTerminalDimensions()
 
   return (
     <box flexShrink={0}>
@@ -140,31 +141,31 @@ export function SubagentFooter() {
               <box
                 onMouseOver={() => setHover("parent")}
                 onMouseOut={() => setHover(null)}
-                onMouseUp={() => command.trigger("session.parent")}
+                onMouseUp={() => keymap.dispatchCommand("session.parent")}
                 backgroundColor={hover() === "parent" ? theme.backgroundElement : theme.backgroundPanel}
               >
                 <text fg={theme.text}>
-                  Parent <span style={{ fg: theme.textMuted }}>{keybind.print("session_parent")}</span>
+                  Parent <span style={{ fg: theme.textMuted }}>{parentShortcut()}</span>
                 </text>
               </box>
               <box
                 onMouseOver={() => setHover("prev")}
                 onMouseOut={() => setHover(null)}
-                onMouseUp={() => command.trigger("session.child.previous")}
+                onMouseUp={() => keymap.dispatchCommand("session.child.previous")}
                 backgroundColor={hover() === "prev" ? theme.backgroundElement : theme.backgroundPanel}
               >
                 <text fg={theme.text}>
-                  Prev <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle_reverse")}</span>
+                  Prev <span style={{ fg: theme.textMuted }}>{previousShortcut()}</span>
                 </text>
               </box>
               <box
                 onMouseOver={() => setHover("next")}
                 onMouseOut={() => setHover(null)}
-                onMouseUp={() => command.trigger("session.child.next")}
+                onMouseUp={() => keymap.dispatchCommand("session.child.next")}
                 backgroundColor={hover() === "next" ? theme.backgroundElement : theme.backgroundPanel}
               >
                 <text fg={theme.text}>
-                  Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
+                  Next <span style={{ fg: theme.textMuted }}>{nextShortcut()}</span>
                 </text>
               </box>
             </Show>
