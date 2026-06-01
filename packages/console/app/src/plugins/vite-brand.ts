@@ -162,6 +162,17 @@ export function viteBrand(): Plugin {
       // the page renders unstyled.
       const css = rewriteWalk(join(process.cwd(), ".output", "public"), ".css")
       if (css > 0) console.log(`[brand] Post-processed ${css} CSS files`)
+
+      // Client JS — same bypass as CSS. Vite's transform hook fires on .tsx
+      // source files, but the resulting client-side route chunks emitted to
+      // .output/public/_build/assets/*.js sometimes still contain unrewritten
+      // literals (e.g. `data-page="opencode"` in the home route bundle). On
+      // SSR the corrected attribute serves; on client-side route navigation
+      // (Solid Router) the home component re-renders from the client bundle,
+      // writes the wrong attribute, and the CSS variable scope detaches —
+      // the page goes unstyled until a hard refresh re-serves SSR.
+      const js = rewriteWalk(join(process.cwd(), ".output", "public"), ".js")
+      if (js > 0) console.log(`[brand] Post-processed ${js} client JS chunks`)
     },
   }
 }
