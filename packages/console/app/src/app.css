@@ -19,3 +19,11 @@ a[href="/go"],
 a[href="/black"] {
   display: none !important;
 }
+/* Also hide the parent <li> in nav lists so the flex/grid gap collapses
+ * cleanly — otherwise empty <li>s leave visible spacing between Docs and
+ * Enterprise. `:has()` is widely supported in modern browsers. */
+nav li:has(> a[href="/zen"]),
+nav li:has(> a[href="/go"]),
+nav li:has(> a[href="/black"]) {
+  display: none !important;
+}
