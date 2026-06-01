@@ -1,1 +1,21 @@
 @import "./style/index.css";
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Paid-product UI is deferred until Connect launches (post fine-tuned-
+ * model release). The middleware 404s the underlying routes (/zen, /go,
+ * /black, /stripe, /enterprise); these rules hide inline references on
+ * pages that still render (homepage CTA section, nav links). Routes and
+ * components stay in the codebase so upstream merges remain low-conflict.
+ * Reactivate by removing this whole block.
+ * ────────────────────────────────────────────────────────────────────── */
+[data-component="zen-cta"],
+[data-component="black-cta"],
+[data-component="enterprise-cta"] {
+  display: none !important;
+}
+a[href="/zen"],
+a[href="/go"],
+a[href="/black"],
+a[href="/enterprise"] {
+  display: none !important;
+}
