@@ -95,7 +95,12 @@ function replaceText(input: string): string {
 // Vite plugin
 // ---------------------------------------------------------------------------
 
-const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
+// `.css` is included because route CSS files hard-code [data-page="opencode"]
+// selectors that need to stay in sync with the TSX `data-page="opensploit"`
+// the brand transform rewrites. Without this, the CSS variables that drive
+// every spacing/color/width token bind to a selector that never matches the
+// DOM, producing an unstyled-document render on every dynamic route.
+const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".css"]
 
 export function viteBrand(): Plugin {
   return {
