@@ -44,3 +44,102 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # Post-deploy smoke check. Catches the two classes of failure we've
+      # hit live this week — wrangler-deploy-succeeds-but-Worker-crashes
+      # (500/1101 on dynamic routes, the 2026-05-24 outage) and CSS brand-
+      # leak (HTML 200 but page unstyled, the 2026-05-31 outage). Both
+      # were invisible to CI for days. Each check retries 3× to absorb
+      # transient blips. Cache-busted via random query string per attempt.
+      - name: Smoke check production
+        run: |
+          set -u
+          # Brief propagation buffer — Worker is global within seconds but
+          # the deploy job's own HTTP egress can race the rollout.
+          sleep 8
+
+          BASE="https://opensploit.ai"
+          FAILED=0
+
+          check() {
+            local url="$1"
+            local expected="$2"
+            local label="$3"
+            for attempt in 1 2 3; do
+              local cb=$(date +%s%N)
+              local code
+              code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 \
+                -H 'Cache-Control: no-cache' "${url}?cb=${cb}")
+              if [ "$code" = "$expected" ]; then
+                echo "✓ ${label}: ${url} → ${code}"
+                return 0
+              fi
+              echo "  attempt ${attempt}: ${url} → ${code} (want ${expected})"
+              sleep 5
+            done
+            echo "::error title=Smoke check failed::${label}: ${url} returned ${code}, expected ${expected}"
+            FAILED=1
+            return 1
+          }
+
+          # Critical pages must serve.
+          check "${BASE}/"           200 "apex"          || true
+          check "${BASE}/docs/"      200 "docs"          || true
+          check "${BASE}/enterprise" 200 "enterprise"    || true
+
+          # Phase-2 gate regression — paid-product routes must 404.
+          check "${BASE}/zen"        404 "paid-gate:zen" || true
+          check "${BASE}/go"         404 "paid-gate:go"  || true
+
+          # CSS brand-leak regression — the homepage's index CSS must not
+          # contain `data-page="opencode"` (closeBundle rewrite has to fire).
+          echo "→ css-brand-leak"
+          CSS_URL=$(curl -sS --max-time 15 -H 'Cache-Control: no-cache' \
+            "${BASE}/?cb=$(date +%s%N)" \
+            | grep -oE 'href="/_build/assets/index-[A-Za-z0-9_-]+\.css"' \
+            | head -1 \
+            | grep -oE '/_build/[^"]+')
+          if [ -z "${CSS_URL}" ]; then
+            echo "::warning title=Smoke check::could not locate index CSS link in homepage HTML"
+          else
+            HITS=$(curl -sS --max-time 15 -H 'Cache-Control: no-cache' \
+              "${BASE}${CSS_URL}?cb=$(date +%s%N)" \
+              | grep -c 'data-page="opencode"' || true)
+            if [ "${HITS}" -gt 0 ]; then
+              echo "::error title=CSS brand-leak::${CSS_URL} contains ${HITS} \"opencode\" references — vite-brand closeBundle did not rewrite"
+              FAILED=1
+            else
+              echo "✓ css-brand-leak: ${CSS_URL} clean"
+            fi
+          fi
+
+          # Client-JS brand-leak regression — home-route .js chunks must not
+          # contain `data-page="opencode"` literal (would cause client-side
+          # navigation back to home to re-render unstyled, the bug fixed in
+          # commit a8203599d). Scans every index-*.js the homepage loads.
+          echo "→ client-js-brand-leak"
+          JS_URLS=$(curl -sS --max-time 15 -H 'Cache-Control: no-cache' \
+            "${BASE}/?cb=$(date +%s%N)" \
+            | grep -oE 'href="/_build/assets/index-[A-Za-z0-9_-]+\.js"' \
+            | grep -oE '/_build/[^"]+' \
+            | sort -u)
+          if [ -z "${JS_URLS}" ]; then
+            echo "::warning title=Smoke check::could not locate any index JS modulepreload links in homepage HTML"
+          else
+            for js_url in ${JS_URLS}; do
+              HITS=$(curl -sS --max-time 15 -H 'Cache-Control: no-cache' \
+                "${BASE}${js_url}?cb=$(date +%s%N)" \
+                | grep -c 'data-page="opencode"' || true)
+              if [ "${HITS}" -gt 0 ]; then
+                echo "::error title=Client JS brand-leak::${js_url} contains ${HITS} \"data-page=opencode\" literals — vite-brand closeBundle did not rewrite client chunks"
+                FAILED=1
+              else
+                echo "✓ client-js-brand-leak: ${js_url} clean"
+              fi
+            done
+          fi
+
+          if [ "${FAILED}" -ne 0 ]; then
+            exit 1
+          fi
+          echo "✓ all smoke checks passed"
