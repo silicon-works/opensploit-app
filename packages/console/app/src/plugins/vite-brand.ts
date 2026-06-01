@@ -95,12 +95,7 @@ function replaceText(input: string): string {
 // Vite plugin
 // ---------------------------------------------------------------------------
 
-// `.css` is included because route CSS files hard-code [data-page="opencode"]
-// selectors that need to stay in sync with the TSX `data-page="opensploit"`
-// the brand transform rewrites. Without this, the CSS variables that drive
-// every spacing/color/width token bind to a selector that never matches the
-// DOM, producing an unstyled-document render on every dynamic route.
-const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".css"]
+const TRANSFORM_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
 
 export function viteBrand(): Plugin {
   return {
@@ -116,24 +111,34 @@ export function viteBrand(): Plugin {
 
       return { code: transformed, map: null }
     },
-    // Post-build pass: Solid's SSR compiler embeds JSX text into template
-    // literal arrays that bypass Vite's transform pipeline. Process the
-    // built .mjs files directly to catch what the transform missed.
+    // Post-build pass: certain build outputs bypass Vite's transform pipeline
+    // entirely. Solid's SSR compiler embeds JSX text into template literal
+    // arrays in the server .mjs chunks; Vite's CSS pipeline emits standalone
+    // .css asset files without firing user `transform` hooks (verified
+    // empirically — adding ".css" to TRANSFORM_EXTENSIONS was a no-op).
+    // Both need the same direct file-rewrite treatment.
     async closeBundle() {
       const { readdirSync, readFileSync, writeFileSync, statSync } = await import("fs")
       const { join, extname } = await import("path")
 
-      const outputDir = join(process.cwd(), ".output", "server", "chunks")
-      try {
+      function rewriteWalk(dir: string, ext: string): number {
         let changed = 0
-        function walk(dir: string) {
+        try {
           for (const entry of readdirSync(dir)) {
             const full = join(dir, entry)
-            if (statSync(full).isDirectory()) {
-              walk(full)
-            } else if (extname(full) === ".mjs") {
+            const st = statSync(full)
+            if (st.isDirectory()) {
+              changed += rewriteWalk(full, ext)
+            } else if (extname(full) === ext) {
               const original = readFileSync(full, "utf-8")
-              if (!original.includes("opencode") && !original.includes("OpenCode") && !original.includes("OPENCODE") && !original.includes("Anomaly") && !original.includes("anoma.ly")) continue
+              if (
+                !original.includes("opencode") &&
+                !original.includes("OpenCode") &&
+                !original.includes("OPENCODE") &&
+                !original.includes("Anomaly") &&
+                !original.includes("anoma.ly")
+              )
+                continue
               const result = replaceText(original)
               if (result !== original) {
                 writeFileSync(full, result)
@@ -141,14 +146,22 @@ export function viteBrand(): Plugin {
               }
             }
           }
+        } catch {
+          // Output dir might not exist during dev
         }
-        walk(outputDir)
-        if (changed > 0) {
-          console.log(`[brand] Post-processed ${changed} server chunks`)
-        }
-      } catch {
-        // Output dir might not exist during dev
+        return changed
       }
+
+      const chunks = rewriteWalk(join(process.cwd(), ".output", "server", "chunks"), ".mjs")
+      if (chunks > 0) console.log(`[brand] Post-processed ${chunks} server chunks`)
+
+      // CSS — route stylesheets hard-code [data-page="opencode"] which scopes
+      // every CSS variable (colors, spacing, max-width). Without rewriting
+      // these to "opensploit", the TSX (already rewritten by `transform`) and
+      // CSS go out of sync — the variable scope never matches the DOM and
+      // the page renders unstyled.
+      const css = rewriteWalk(join(process.cwd(), ".output", "public"), ".css")
+      if (css > 0) console.log(`[brand] Post-processed ${css} CSS files`)
     },
   }
 }
