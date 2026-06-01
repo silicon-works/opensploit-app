@@ -2,20 +2,20 @@
 
 /* ──────────────────────────────────────────────────────────────────────
  * Paid-product UI is deferred until Connect launches (post fine-tuned-
- * model release). The middleware 404s the underlying routes (/zen, /go,
- * /black, /stripe, /enterprise); these rules hide inline references on
- * pages that still render (homepage CTA section, nav links). Routes and
- * components stay in the codebase so upstream merges remain low-conflict.
- * Reactivate by removing this whole block.
+ * model release). The middleware rewrites /zen, /go, /black, /stripe to
+ * a non-existent path so the framework's natural 404 fires; these rules
+ * hide inline references on pages that still render (homepage CTA
+ * section, nav links). Components stay in the codebase so upstream
+ * merges remain low-conflict. /enterprise is intentionally NOT hidden —
+ * it's a sales contact form, not a paid product. Reactivate by removing
+ * this whole block.
  * ────────────────────────────────────────────────────────────────────── */
 [data-component="zen-cta"],
-[data-component="black-cta"],
-[data-component="enterprise-cta"] {
+[data-component="black-cta"] {
   display: none !important;
 }
 a[href="/zen"],
 a[href="/go"],
-a[href="/black"],
-a[href="/enterprise"] {
+a[href="/black"] {
   display: none !important;
 }
